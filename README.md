@@ -25,9 +25,32 @@ Planning and foundation docs are in place. The local foundation is now running:
 - local conversation shell;
 - supervised Codex manual handoff runtime;
 - supervised Codex autorun for stored handoffs;
+- Local Control v0 for approved dashboard-triggered laptop actions;
 - memory summary command;
+- automatic status tracker for compact current-state handoff between sessions;
 - local dashboard at `http://127.0.0.1:8787`;
+- terminal-free macOS dashboard launcher;
 - Codex app-server feasibility tooling.
+
+## Open The Dashboard
+
+Install the launcher once:
+
+```bash
+./scripts/install-mac-launcher
+```
+
+Then open Arceus from:
+
+```text
+/Users/brianng/Developer/Arceus/Arceus Dashboard.app
+```
+
+Manual terminal startup remains available as a fallback:
+
+```bash
+./scripts/arceus dashboard start
+```
 
 ## Key Documents
 
@@ -38,6 +61,8 @@ Planning and foundation docs are in place. The local foundation is now running:
 - [Codex Runtime Bridge](docs/codex-runtime-bridge.md)
 - [Codex App-Server Feasibility](docs/codex-app-server-feasibility.md)
 - [Local Dashboard](docs/local-dashboard.md)
+- [Dashboard Roadmap And Status Tracker](docs/dashboard-roadmap.md)
+- [Local Access Policy](docs/access-policy.md)
 - [UI Design Rules](docs/ui-design-rules.md)
 - [Agent System](docs/agents.md)
 - [TCG Business Agent Ecosystem](docs/tcg-business-agent-ecosystem.md)
@@ -57,3 +82,9 @@ Arceus should be powerful, but never reckless.
 Cloud and phone access are limited by default. The laptop is the trusted control
 center. High-risk actions require explicit approval until the user promotes a
 workflow to automation.
+
+Before substantial new work, read the compact status tracker first:
+
+```bash
+./scripts/arceus status-summary
+```

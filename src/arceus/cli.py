@@ -7,9 +7,19 @@ import sys
 from arceus.codex_runner import CodexRunError, run_handoff_with_codex
 from arceus.config import get_settings
 from arceus.conversation import ConversationStore, ConversationTurn
+from arceus.dashboard_launcher import (
+    dashboard_status,
+    install_mac_launcher,
+    open_dashboard,
+    start_dashboard,
+    stop_dashboard,
+)
+from arceus.local_control import LocalControlService
 from arceus.migrations import migrate
+from arceus.path_policy import describe_path_policy, ensure_read_allowed
 from arceus.queue import EnqueueRequest, RemoteTaskQueue, to_pretty_json
 from arceus.runtimes import get_runtime, inspect_codex_app_server, inspect_codex_runtime
+from arceus.status import StatusTracker, StatusUpdate, initialize_status_tracker
 from arceus.web import serve
 from arceus.worker import drain_once, run_polling_worker
 
@@ -104,9 +114,84 @@ def build_parser() -> argparse.ArgumentParser:
     memory.add_argument("--limit", type=int, default=5)
     memory.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
 
+    status_summary = subcommands.add_parser(
+        "status-summary",
+        help="Show the compact current-state tracker for low-token session starts.",
+    )
+    status_summary.add_argument("--limit", type=int, default=5)
+    status_summary.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    record_status = subcommands.add_parser("record-status", help="Record a compact Arceus status update.")
+    record_status.add_argument("--actor", default="arceus_cli")
+    record_status.add_argument("--runtime", default=None)
+    record_status.add_argument("--workstream", required=True)
+    record_status.add_argument("--status", required=True)
+    record_status.add_argument("--summary", required=True)
+    record_status.add_argument("--decision", action="append", default=[])
+    record_status.add_argument("--file-changed", action="append", default=[])
+    record_status.add_argument("--blocker", action="append", default=[])
+    record_status.add_argument("--next-action", action="append", default=[])
+    record_status.add_argument("--memory-note", default=None)
+    record_status.add_argument("--project", default=None)
+    record_status.add_argument("--task", default=None)
+    record_status.add_argument("--agent", default=None)
+    record_status.add_argument("--source-type", default="manual")
+    record_status.add_argument("--source-id", default=None)
+    record_status.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    init_status = subcommands.add_parser(
+        "init-status-tracker",
+        help="Seed the status tracker and Obsidian current-state files.",
+    )
+    init_status.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    path_policy = subcommands.add_parser("path-policy", help="Show Arceus read/write path allowlists.")
+    path_policy.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    local_actions = subcommands.add_parser("local-actions", help="List dashboard-safe local actions.")
+    local_actions.add_argument("--limit", type=int, default=8)
+    local_actions.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    run_local_action = subcommands.add_parser("run-local-action", help="Run one dashboard-safe local action.")
+    run_local_action.add_argument("action_key")
+    run_local_action.add_argument("--confirm", default=None, help="Approval token. Use the action key for approval-gated actions.")
+    run_local_action.add_argument("--payload", default="{}", type=parse_payload, help="Optional JSON payload.")
+    run_local_action.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
     web = subcommands.add_parser("web", help="Run the local Arceus dashboard.")
     web.add_argument("--host", default="127.0.0.1")
     web.add_argument("--port", type=int, default=8787)
+
+    dashboard = subcommands.add_parser("dashboard", help="Start, stop, open, or inspect the dashboard service.")
+    dashboard_subcommands = dashboard.add_subparsers(dest="dashboard_command", required=True)
+
+    dashboard_start = dashboard_subcommands.add_parser("start", help="Start the dashboard without keeping Terminal open.")
+    dashboard_start.add_argument("--host", default="127.0.0.1")
+    dashboard_start.add_argument("--port", type=int, default=8787)
+    dashboard_start.add_argument("--no-open", action="store_true", help="Start the server without opening a browser.")
+    dashboard_start.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    dashboard_stop = dashboard_subcommands.add_parser("stop", help="Stop the dashboard service started by Arceus.")
+    dashboard_stop.add_argument("--host", default="127.0.0.1")
+    dashboard_stop.add_argument("--port", type=int, default=8787)
+    dashboard_stop.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    dashboard_open = dashboard_subcommands.add_parser("open", help="Open the dashboard in your default browser.")
+    dashboard_open.add_argument("--host", default="127.0.0.1")
+    dashboard_open.add_argument("--port", type=int, default=8787)
+    dashboard_open.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    dashboard_state = dashboard_subcommands.add_parser("status", help="Show whether the dashboard service is reachable.")
+    dashboard_state.add_argument("--host", default="127.0.0.1")
+    dashboard_state.add_argument("--port", type=int, default=8787)
+    dashboard_state.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    dashboard_install = dashboard_subcommands.add_parser(
+        "install-launcher",
+        help="Install a double-click macOS app that starts Arceus without a Terminal window.",
+    )
+    dashboard_install.add_argument("--app-path", default=None, help="Optional .app output path.")
+    dashboard_install.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
 
     return parser
 
@@ -202,7 +287,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.result_file == "-":
             result_text = sys.stdin.read()
         elif args.result_file:
-            with open(args.result_file, "r", encoding="utf-8") as result_file:
+            result_path = ensure_read_allowed(settings, args.result_file)
+            with result_path.open("r", encoding="utf-8") as result_file:
                 result_text = result_file.read()
 
         if not result_text:
@@ -259,8 +345,108 @@ def main(argv: list[str] | None = None) -> int:
             print(format_memory_summary(summary))
         return 0
 
+    if args.command == "status-summary":
+        tracker = StatusTracker(settings)
+        summary = tracker.current_state(args.limit)
+        if args.json:
+            print(to_pretty_json(summary))
+        else:
+            print(format_status_summary(summary))
+        return 0
+
+    if args.command == "record-status":
+        tracker = StatusTracker(settings)
+        recorded = tracker.record(
+            StatusUpdate(
+                actor=args.actor,
+                runtime=args.runtime or settings.runtime_mode,
+                workstream=args.workstream,
+                status=args.status,
+                summary=args.summary,
+                decisions=args.decision,
+                files_changed=args.file_changed,
+                blockers=args.blocker,
+                next_actions=args.next_action,
+                memory_notes=args.memory_note,
+                linked_project=args.project,
+                linked_task=args.task,
+                linked_agent=args.agent,
+                source_type=args.source_type,
+                source_id=args.source_id,
+            )
+        )
+        if args.json:
+            print(to_pretty_json(recorded))
+        else:
+            print("Arceus status update recorded.")
+            if recorded.get("obsidian_path"):
+                print(f"Obsidian note: {recorded['obsidian_path']}")
+            if recorded.get("obsidian_error"):
+                print(f"Obsidian write issue: {recorded['obsidian_error']}")
+        return 0
+
+    if args.command == "init-status-tracker":
+        tracker = StatusTracker(settings)
+        recorded = initialize_status_tracker(settings, actor="arceus_cli")
+        summary = tracker.current_state(5)
+        if args.json:
+            print(to_pretty_json({"recorded": recorded, "current_state": summary}))
+        else:
+            print("Arceus status tracker initialized.")
+            print(format_status_summary(summary))
+        return 0
+
+    if args.command == "path-policy":
+        policy = describe_path_policy(settings)
+        if args.json:
+            print(to_pretty_json(policy))
+        else:
+            print(format_path_policy(policy))
+        return 0
+
+    if args.command == "local-actions":
+        local_control = LocalControlService(settings)
+        payload = {
+            "actions": local_control.catalog(),
+            "recent_runs": local_control.recent_runs(args.limit),
+        }
+        if args.json:
+            print(to_pretty_json(payload))
+        else:
+            print(format_local_actions(payload))
+        return 0
+
+    if args.command == "run-local-action":
+        local_control = LocalControlService(settings)
+        result = local_control.run(args.action_key, confirm=args.confirm, payload=args.payload)
+        if args.json:
+            print(to_pretty_json(result))
+        else:
+            print(format_local_action_result(result))
+        return 0
+
     if args.command == "web":
         serve(settings, args.host, args.port)
+        return 0
+
+    if args.command == "dashboard":
+        if args.dashboard_command == "start":
+            result = start_dashboard(settings, args.host, args.port, open_browser=not args.no_open)
+        elif args.dashboard_command == "stop":
+            result = stop_dashboard(args.host, args.port, settings=settings)
+        elif args.dashboard_command == "open":
+            result = open_dashboard(args.host, args.port, settings=settings)
+        elif args.dashboard_command == "status":
+            result = dashboard_status(args.host, args.port, settings=settings)
+        elif args.dashboard_command == "install-launcher":
+            result = install_mac_launcher(settings, args.app_path)
+        else:
+            raise AssertionError(f"Unknown dashboard command {args.dashboard_command}")
+
+        if args.json:
+            print(to_pretty_json(result))
+        else:
+            print(format_dashboard_command_result(result))
         return 0
 
     if args.command == "enqueue":
@@ -315,10 +501,26 @@ def format_memory_summary(summary: dict) -> str:
         "=====================",
         f"Owner: {summary['owner_id']}",
         f"Runtime: {summary['runtime_mode']}",
-        "",
-        "Recent Sessions",
-        "---------------",
     ]
+
+    current_status = summary.get("current_status") or {}
+    latest_update = current_status.get("latest_update")
+    lines.extend(["", "Current State", "-------------"])
+    if latest_update:
+        lines.append(
+            f"- {latest_update['status']} / {latest_update['workstream']}: "
+            f"{latest_update['summary']}"
+        )
+    else:
+        lines.append("No status tracker update recorded yet.")
+    next_actions = current_status.get("next_actions") or []
+    if next_actions:
+        lines.append("- Next: " + "; ".join(next_actions[:3]))
+    blockers = current_status.get("blockers") or []
+    if blockers:
+        lines.append("- Blocked: " + "; ".join(blockers[:3]))
+
+    lines.extend(["", "Recent Sessions", "---------------"])
 
     sessions = summary["recent_sessions"]
     if not sessions:
@@ -346,6 +548,120 @@ def format_memory_summary(summary: dict) -> str:
     for status, count in task_counts.items():
         lines.append(f"- {status}: {count}")
 
+    return "\n".join(lines)
+
+
+def format_status_summary(summary: dict) -> str:
+    lines = [
+        "Arceus Current State",
+        "====================",
+        f"Owner: {summary['owner_id']}",
+        f"Obsidian vault: {summary.get('obsidian_vault_path') or 'not configured'}",
+        "",
+        "Latest Update",
+        "-------------",
+    ]
+
+    latest = summary.get("latest_update")
+    if latest:
+        lines.append(f"- {latest['status']} / {latest['workstream']}: {latest['summary']}")
+        lines.append(f"- Time: {latest['created_at']}")
+    else:
+        lines.append("No status updates yet.")
+
+    lines.extend(["", "Next Actions", "------------"])
+    next_actions = summary.get("next_actions") or []
+    if not next_actions:
+        lines.append("No next actions recorded.")
+    for action in next_actions:
+        lines.append(f"- {action}")
+
+    lines.extend(["", "Blockers", "--------"])
+    blockers = summary.get("blockers") or []
+    if not blockers:
+        lines.append("No blockers recorded.")
+    for blocker in blockers:
+        lines.append(f"- {blocker}")
+
+    lines.extend(["", "Recent Updates", "--------------"])
+    recent = summary.get("recent_updates") or []
+    if not recent:
+        lines.append("No recent updates.")
+    for update in recent:
+        lines.append(f"- {update['status']} / {update['workstream']}: {update['summary']}")
+
+    return "\n".join(lines)
+
+
+def format_local_actions(payload: dict) -> str:
+    lines = ["Arceus Local Control", "====================", "", "Allowed Actions", "---------------"]
+    for action in payload.get("actions") or []:
+        approval = "approval required" if action.get("approval_required") else "no approval needed"
+        lines.append(f"- {action['key']}: {action['title']} ({action['risk_level']}, {approval})")
+
+    lines.extend(["", "Recent Runs", "-----------"])
+    runs = payload.get("recent_runs") or []
+    if not runs:
+        lines.append("No local action runs recorded yet.")
+    for run in runs:
+        lines.append(f"- {run['status']} / {run['action_key']}: {run.get('output_summary') or run.get('error_message') or run['title']}")
+    return "\n".join(lines)
+
+
+def format_local_action_result(result: dict) -> str:
+    action = result.get("action") or {}
+    lines = [
+        "Arceus Local Action",
+        "===================",
+        f"Action: {action.get('title') or action.get('key')}",
+        f"Status: {'completed' if result.get('ok') else 'failed'}",
+    ]
+    if result.get("error"):
+        lines.append(f"Error: {result['error']}")
+    action_result = result.get("result") or {}
+    if action_result.get("summary"):
+        lines.append(f"Summary: {action_result['summary']}")
+    run = result.get("run")
+    if run:
+        lines.append(f"Run id: {run['id']}")
+    return "\n".join(lines)
+
+
+def format_dashboard_command_result(result: dict) -> str:
+    status = result.get("status") if isinstance(result.get("status"), dict) else result
+    lines = [
+        "Arceus Dashboard",
+        "================",
+        str(result.get("summary") or status.get("summary") or "Dashboard status read."),
+    ]
+    if status.get("url"):
+        lines.append(f"URL: {status['url']}")
+    if status.get("running") is not None:
+        lines.append(f"Running: {'yes' if status['running'] else 'no'}")
+    if status.get("pid"):
+        lines.append(f"PID: {status['pid']}")
+    if status.get("log_path"):
+        lines.append(f"Log: {status['log_path']}")
+    if result.get("log_tail"):
+        lines.extend(["", "Recent Log", "----------", str(result["log_tail"]).strip()])
+    return "\n".join(lines)
+
+
+def format_path_policy(policy: dict) -> str:
+    lines = [
+        "Arceus Path Policy",
+        "==================",
+        str(policy.get("summary") or "Path policy loaded."),
+        "",
+        "Read Roots",
+        "----------",
+    ]
+    for path in policy.get("read_roots") or []:
+        lines.append(f"- {path}")
+
+    lines.extend(["", "Write Roots", "-----------"])
+    for path in policy.get("write_roots") or []:
+        lines.append(f"- {path}")
     return "\n".join(lines)
 
 

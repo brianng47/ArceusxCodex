@@ -4,300 +4,324 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Arceus Command</title>
-    <link rel="stylesheet" href="/assets/styles.css" />
+    <link rel="stylesheet" href="/assets/styles.css?v=project-task-flow" />
   </head>
-  <body>
+  <body data-power-state="booting">
     <div class="cosmic-noise" aria-hidden="true"></div>
-    <div class="shell">
-      <aside class="side-rail" aria-label="Primary navigation">
+
+    <section class="power-overlay" id="powerOverlay" aria-labelledby="powerTitle" aria-describedby="powerText">
+      <div class="power-field" aria-hidden="true">
+        <div class="power-ring ring-a"></div>
+        <div class="power-ring ring-b"></div>
+        <div class="power-ring ring-c"></div>
+        <div class="power-core"></div>
+      </div>
+      <div class="power-copy">
+        <p class="eyebrow" id="powerEyebrow">Origin boot</p>
+        <h1 id="powerTitle">Arceus is dormant.</h1>
+        <p id="powerText">Local command surface is loaded. Wake the system when you want judgment, memory, or execution.</p>
+        <div class="power-actions">
+          <button id="wakeButton" type="button">Wake Arceus</button>
+          <span id="powerStatus">Awaiting wake command</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="dashboard-shell" id="command">
+      <header class="topbar" aria-label="Arceus status">
         <div class="brand-lockup">
-          <div class="brand-sigil" aria-hidden="true">
-            <span></span>
-          </div>
+          <div class="brand-sigil" aria-hidden="true"><span></span></div>
           <div>
             <p class="eyebrow">Origin system</p>
             <h1>Arceus</h1>
           </div>
         </div>
 
-        <nav class="nav-stack" aria-label="Command areas">
-          <a class="nav-item active" href="#command">
-            <span class="nav-icon">C</span>
-            <span>Command</span>
-          </a>
-          <a class="nav-item" href="#conversationTitle">
-            <span class="nav-icon">D</span>
-            <span>Dialogue</span>
-            <strong>Live</strong>
-          </a>
-          <a class="nav-item" href="#handoffsTitle">
-            <span class="nav-icon">H</span>
-            <span>Handoffs</span>
-          </a>
-          <a class="nav-item" href="#memoryPulse">
-            <span class="nav-icon">M</span>
-            <span>Memory</span>
-          </a>
-          <a class="nav-item" href="#approvals">
-            <span class="nav-icon">A</span>
-            <span>Approvals</span>
-          </a>
-          <a class="nav-item" href="#system">
-            <span class="nav-icon">S</span>
-            <span>System</span>
-          </a>
-        </nav>
+        <label class="search-shell">
+          <span aria-hidden="true">/</span>
+          <input id="quickSearch" type="search" placeholder="Ask from anywhere..." autocomplete="off" />
+          <kbd>⌘</kbd>
+          <kbd>K</kbd>
+        </label>
 
-        <div class="radar-card" aria-label="Presence radar">
-          <div class="mini-radar" aria-hidden="true">
-            <span></span>
-          </div>
-          <p class="eyebrow">Divine scan</p>
-          <strong id="presenceTitle">Watchful</strong>
-          <span id="presenceText">Ready to draft supervised Codex handoffs.</span>
+        <div class="status-cluster">
+          <span class="status-pill online">Local</span>
+          <span class="status-pill" id="runtimePill">Runtime: ...</span>
+          <span class="status-pill" id="codexPill">Codex: checking</span>
+          <button class="secondary-button control-button" id="controlButton" type="button">Control</button>
+          <button class="secondary-button sleep-button" id="sleepButton" type="button">Sleep</button>
+          <button class="icon-button" id="refreshButton" type="button" title="Refresh status" aria-label="Refresh status">↻</button>
         </div>
-      </aside>
+      </header>
 
-      <main class="command-surface" id="command">
-        <header class="topbar" aria-label="Arceus status">
-          <label class="search-shell">
-            <span aria-hidden="true">/</span>
-            <input id="quickSearch" type="search" placeholder="Ask Arceus anything..." autocomplete="off" />
-            <kbd>Ctrl</kbd>
-            <kbd>K</kbd>
-          </label>
-          <div class="status-cluster">
-            <span class="status-pill online">Online</span>
-            <span class="status-pill" id="runtimePill">Runtime: ...</span>
-            <span class="status-pill" id="codexPill">Codex: checking</span>
-            <button class="icon-button" id="refreshButton" type="button" title="Refresh status">R</button>
+      <main class="workspace">
+        <aside class="zone-sidebar" aria-label="Arceus folders">
+          <div class="sidebar-top">
+            <p class="eyebrow">Zones</p>
+            <h2>Command folders</h2>
           </div>
-        </header>
+          <nav class="zone-list" aria-label="Dashboard zones">
+            <button class="zone-item selected" type="button" data-zone="Chats" data-zone-copy="Existing conversations route here once chat archives are wired.">
+              <span class="zone-icon">⌁</span>
+              <span>
+                <strong>Chats</strong>
+                <small>Arceus conversations</small>
+              </span>
+            </button>
+            <button class="zone-item" type="button" data-zone="Agents" data-zone-copy="Agent registry will group specialists by skillset, trust level, and status.">
+              <span class="zone-icon">✦</span>
+              <span>
+                <strong>Agents</strong>
+                <small>Skills and status</small>
+              </span>
+            </button>
+            <button class="zone-item" type="button" data-zone="Tasks" data-zone-copy="Scheduled, queued, running, and approval-waiting work will live here.">
+              <span class="zone-icon">◇</span>
+              <span>
+                <strong>Tasks</strong>
+                <small>Queue and schedule</small>
+              </span>
+            </button>
+            <button class="zone-item" type="button" data-zone="Workflows" data-zone-copy="Workflow diagrams will connect agents, memory, approvals, and outputs.">
+              <span class="zone-icon">⌬</span>
+              <span>
+                <strong>Workflows</strong>
+                <small>Agent routes</small>
+              </span>
+            </button>
+            <button class="zone-item" type="button" data-zone="Projects" data-zone-copy="Project folders will open into tasks, files, decisions, and memory trails. Double click will become drill-down.">
+              <span class="zone-icon">▣</span>
+              <span>
+                <strong>Projects</strong>
+                <small>Folders and outcomes</small>
+              </span>
+            </button>
+          </nav>
+        </aside>
 
-        <section class="dashboard-grid">
-          <section class="hero-panel instrument-panel" aria-label="Arceus command presence">
-            <div class="hero-copy">
-              <p class="eyebrow">Good afternoon, Brian</p>
-              <h2>What needs judgment, force, or memory today?</h2>
-              <div class="voice-wave" aria-hidden="true">
-                <span></span><span></span><span></span><span></span><span></span>
-                <span></span><span></span><span></span><span></span><span></span>
-                <span></span><span></span><span></span><span></span><span></span>
+        <section class="command-column" aria-label="Main command surface">
+          <section class="status-plates" aria-label="Arceus operational plates">
+            <article class="status-plate panel current-runtime">
+              <div class="plate-head">
+                <h3>Current Runtime</h3>
+                <span id="runtimeState">Checking</span>
               </div>
-              <div class="intent-grid" aria-label="Quick intents">
-                <button class="intent-card" type="button" data-prompt="Help me compose a clear plan for the next Arceus build step.">
-                  <span>Compose</span>
-                  <small>Write and shape</small>
-                </button>
-                <button class="intent-card violet" type="button" data-prompt="Research the current Arceus project context and tell me the strongest next move.">
-                  <span>Research</span>
-                  <small>Deep analysis</small>
-                </button>
-                <button class="intent-card teal" type="button" data-prompt="Prepare a supervised Codex handoff for the next local Arceus implementation task.">
-                  <span>Execute</span>
-                  <small>Run supervised work</small>
-                </button>
-                <button class="intent-card gold" type="button" data-prompt="Review the Arceus dashboard for weak design or implementation choices.">
-                  <span>Challenge</span>
-                  <small>Find weak points</small>
-                </button>
-              </div>
-            </div>
-
-            <div class="avatar-stage" aria-label="Arceus avatar">
-              <div class="circuit-field" aria-hidden="true"></div>
-              <div class="avatar-core" id="avatarCore">
-                <div class="halo halo-one"></div>
-                <div class="halo halo-two"></div>
-                <div class="halo halo-three"></div>
-                <div class="avatar-symbol" aria-hidden="true">
-                  <span class="crest"></span>
-                  <strong>A</strong>
+              <div class="plate-body">
+                <div class="plate-token">AR</div>
+                <div>
+                  <strong id="runtimeMode">...</strong>
+                  <p id="runtimeCopy">Local-first command surface.</p>
                 </div>
-                <div class="jewel jewel-top">Tasks</div>
-                <div class="jewel jewel-right">Agents</div>
-                <div class="jewel jewel-bottom">Memory</div>
-                <div class="jewel jewel-left">Approvals</div>
               </div>
-            </div>
-          </section>
+              <div class="plate-grid">
+                <span>Mode <strong id="runtimeKind">...</strong></span>
+                <span>Trust <strong>Supervised</strong></span>
+                <span>Power <strong>Local</strong></span>
+              </div>
+            </article>
 
-          <section class="status-panel instrument-panel" aria-labelledby="statusTitle">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Arceus status</p>
-                <h2 id="statusTitle">Guarded</h2>
+            <article class="status-plate panel">
+              <div class="plate-head">
+                <h3>Agents</h3>
+                <button type="button" class="plate-link" data-zone="Agents">View all</button>
               </div>
-              <span class="tiny-state">Local only</span>
-            </div>
-            <div class="metric-grid">
-              <div class="metric-tile">
-                <span>Errors</span>
-                <strong>0</strong>
-                <small>Clean</small>
+              <div class="plate-metric">
+                <strong id="agentMetric">3</strong>
+                <span>planned foundations</span>
               </div>
-              <div class="metric-tile">
-                <span>Privacy</span>
-                <strong>Guarded</strong>
-                <small>Laptop approval</small>
+              <div class="tool-icons" aria-label="Agent categories">
+                <span title="Brain">✦</span>
+                <span title="Memory">◈</span>
+                <span title="Code">⌘</span>
+                <span title="Research">⌁</span>
+                <span title="Design">◇</span>
               </div>
-              <div class="metric-tile">
-                <span>Active tasks</span>
+            </article>
+
+            <article class="status-plate panel">
+              <div class="plate-head">
+                <h3>Running Tasks</h3>
+                <button type="button" class="plate-link" data-zone="Tasks">View all</button>
+              </div>
+              <div class="plate-metric">
                 <strong id="activeTaskMetric">0</strong>
-                <small>Observed locally</small>
+                <span>active</span>
               </div>
-              <div class="metric-tile">
-                <span>Mode</span>
-                <strong>Advisory</strong>
-                <small>No blind execution</small>
+              <p class="plate-note" id="taskPlateNote">No running tasks.</p>
+            </article>
+
+            <article class="status-plate panel memory-plate">
+              <div class="plate-head">
+                <h3>Memory Status</h3>
+                <span id="memoryState">Checking</span>
               </div>
+              <div class="memory-ring" aria-hidden="true">
+                <span id="memoryRingLabel">On</span>
+              </div>
+              <div class="memory-copy">
+                <strong id="memoryMetric">Local</strong>
+                <span id="memoryDetail">Sessions and handoffs loading.</span>
+              </div>
+            </article>
+          </section>
+
+          <section class="zone-panel panel" id="zonePanel" aria-label="Active dashboard zone" aria-hidden="true">
+            <div class="zone-panel-head">
+              <div>
+                <p class="eyebrow">Active zone</p>
+                <h2 id="zoneTitle">Chats</h2>
+                <p id="zoneSummary">Loading conversations and links.</p>
+              </div>
+              <div class="zone-panel-actions">
+                <label class="zone-search-shell" id="zoneSearchShell">
+                  <span>Search</span>
+                  <input id="zoneSearch" type="search" placeholder="Search chats..." autocomplete="off" />
+                </label>
+                <button class="secondary-button zone-close-button" id="zoneCloseButton" type="button">Close</button>
+              </div>
+            </div>
+            <div class="zone-body" id="zoneBody" aria-live="polite">
+              <p class="muted">Loading zone data...</p>
             </div>
           </section>
 
-          <section class="thinking-panel instrument-panel" aria-labelledby="thinkingTitle">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Arceus thinking</p>
-                <h2 id="thinkingTitle">Current frame</h2>
-              </div>
-              <span class="tiny-state">Live</span>
-            </div>
-            <ol class="thinking-list">
-              <li class="complete">Understanding your request</li>
-              <li class="complete">Checking project doctrine</li>
-              <li class="active">Selecting safe local action</li>
-              <li>Waiting for verified results</li>
-              <li>Recording memory-worthy outcomes</li>
-            </ol>
-            <div class="orbit-map" aria-hidden="true"><span></span></div>
+          <section class="shortcut-panel hidden-home-module" aria-label="Fast command modes">
+            <button class="shortcut-card compose" type="button" data-mode="Compose" data-prompt="Act as Arceus' strategy editor. Help me compose the following into a sharper output: [paste rough idea]. First identify the goal, audience, desired format, and missing context. Then produce: 1. a clean final draft, 2. why this structure works, 3. three stronger angle options, and 4. any memory-worthy decision Arceus should preserve. If the goal is unclear, ask one precise question before drafting.">
+              <span>Compose</span>
+              <small>Turn a rough thought into a useful artifact.</small>
+            </button>
+            <button class="shortcut-card research" type="button" data-mode="Research" data-prompt="Prepare a research brief for: [topic or decision]. Separate sourced facts from inference. Include: 1. the core question, 2. what must be verified, 3. likely sources or databases to check, 4. decision criteria, 5. concise findings format, and 6. recommended next action. If live research or external sources are needed, create a supervised Codex handoff instead of pretending the answer is current.">
+              <span>Research</span>
+              <small>Clarify what must be verified before deciding.</small>
+            </button>
+            <button class="shortcut-card execute" type="button" data-mode="Execute" data-prompt="Prepare a supervised Codex execution plan for: [implementation task]. Classify risk level, list likely files touched, define success criteria, identify approval gates, and produce a Codex handoff packet. Do not run destructive, credential, financial, publishing, or irreversible actions without explicit approval. Prefer the smallest verifiable slice first.">
+              <span>Execute</span>
+              <small>Create a safe local-work handoff.</small>
+            </button>
+            <button class="shortcut-card challenge" type="button" data-mode="Challenge" data-prompt="Challenge this idea like a pragmatic advisor: [idea]. Lead with the weakest assumption. Then provide: 1. what is probably wrong, 2. what evidence would change the answer, 3. highest-leverage alternative, 4. what to test first, and 5. a clear recommendation. Be direct, practical, and useful.">
+              <span>Challenge</span>
+              <small>Pressure-test the weak assumption first.</small>
+            </button>
           </section>
 
-          <section class="conversation instrument-panel" aria-labelledby="conversationTitle">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Dialogue</p>
-                <h2 id="conversationTitle">Conversation</h2>
-              </div>
-              <span class="tiny-state" id="sessionState">No session</span>
+          <form class="composer panel hidden-home-module" id="chatForm">
+            <div class="composer-context">
+              <span class="mode-chip active" id="selectedMode">Chat</span>
+              <span class="composer-hint" id="sessionState">No session</span>
             </div>
-            <div class="message-log" id="messageLog" aria-live="polite"></div>
+            <div class="composer-row">
+              <textarea id="chatInput" rows="2" placeholder="Speak plainly. Arceus can handle it."></textarea>
+              <button type="submit">Send</button>
+            </div>
+          </form>
+
+          <section class="local-control panel hidden-home-module" aria-label="Local Control">
+            <details class="control-drawer" id="localControlDrawer">
+              <summary>
+                <span>
+                  <strong>Local Control</strong>
+                  <small>Approved laptop actions, without Terminal copy/paste.</small>
+                </span>
+                <span class="drawer-state" id="localControlState">Loading</span>
+              </summary>
+              <div class="control-intro">
+                <p>
+                  Only cataloged actions can run here. State-changing actions still require approval.
+                </p>
+              </div>
+              <section class="approval-card" id="localApprovalCard" hidden aria-live="polite">
+                <div>
+                  <p class="eyebrow">Approval gate</p>
+                  <h3 id="approvalTitle">Review local action</h3>
+                  <p id="approvalDescription">Select an action to inspect the risk before execution.</p>
+                </div>
+                <dl class="approval-facts">
+                  <div>
+                    <dt>Risk</dt>
+                    <dd id="approvalRisk">-</dd>
+                  </div>
+                  <div>
+                    <dt>Expected output</dt>
+                    <dd id="approvalExpected">-</dd>
+                  </div>
+                </dl>
+                <div class="approval-actions">
+                  <button class="secondary-button" id="approvalDeclineButton" type="button">Decline</button>
+                  <button id="approvalRunButton" type="button">Approve run</button>
+                </div>
+              </section>
+              <div class="local-action-list" id="localActionList">
+                <p class="muted">Loading local actions...</p>
+              </div>
+              <div class="local-run-panel">
+                <div class="plate-head">
+                  <h3>Recent Local Runs</h3>
+                  <button class="plate-link" id="refreshLocalActionsButton" type="button">Refresh</button>
+                </div>
+                <div id="localRunList" class="local-run-list">
+                  <p class="muted">No local action runs yet.</p>
+                </div>
+              </div>
+            </details>
           </section>
 
-          <section class="tool-panel instrument-panel" aria-labelledby="toolTitle">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Current model</p>
-                <h2 id="toolTitle">Local bridge</h2>
-              </div>
-              <span class="tiny-state">Primary</span>
-            </div>
-            <div class="model-card">
-              <div class="model-mark">AN</div>
-              <div>
-                <strong>Arceus native</strong>
-                <span>Conversation shell and Codex handoff router</span>
-              </div>
-            </div>
-            <div class="tool-chips" aria-label="Registered tool groups">
-              <span>Chat</span>
-              <span>Memory</span>
-              <span>Queue</span>
-              <span>Runtime</span>
-              <span>Audit</span>
-              <span>+ local tools</span>
-            </div>
-          </section>
-
-          <section class="handoffs instrument-panel" aria-labelledby="handoffsTitle">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Runtime bridge</p>
-                <h2 id="handoffsTitle">Codex Handoffs</h2>
-              </div>
+          <section class="hidden-ledger" aria-label="Hidden Codex handoff ledger">
+            <details class="details-drawer handoff-drawer" id="handoffDrawer">
+              <summary>Execution ledger</summary>
               <div class="handoff-actions">
                 <button id="runHandoffButton" type="button" disabled>Run with Codex</button>
-                <button id="copyHandoffButton" type="button" disabled>Copy Packet</button>
+                <button class="secondary-button" id="copyHandoffButton" type="button" disabled>Copy packet</button>
               </div>
-            </div>
-            <div class="handoff-focus" id="handoffFocus">
-              <p class="muted">Ask for implementation work and Arceus will summon a handoff here.</p>
-            </div>
-            <form class="result-form" id="resultForm">
-              <input id="resultHandoffId" placeholder="handoff id" />
-              <input id="resultSummary" placeholder="short summary" />
-              <textarea id="resultMemory" rows="3" placeholder="memory-worthy note"></textarea>
-              <button type="submit">Record Result</button>
-            </form>
+              <div class="handoff-focus" id="handoffFocus">
+                <p class="muted">Codex handoffs stay hidden until you open this ledger.</p>
+              </div>
+              <form class="result-form" id="resultForm">
+                <input id="resultHandoffId" placeholder="handoff id" />
+                <input id="resultSummary" placeholder="short summary" />
+                <textarea id="resultMemory" rows="3" placeholder="memory-worthy note"></textarea>
+                <button type="submit">Record result</button>
+              </form>
+              <div class="ledger-grid">
+                <div id="memoryPulse">Loading memory...</div>
+                <div id="handoffList">Loading handoffs...</div>
+              </div>
+            </details>
           </section>
 
-          <section class="memory-panel instrument-panel" aria-labelledby="memoryTitle">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Memory pulse</p>
-                <h2 id="memoryTitle">Durable context</h2>
-              </div>
-              <span class="tiny-state">Catch-up ready</span>
-            </div>
-            <div id="memoryPulse">Loading memory...</div>
-          </section>
+          <div class="screen-reader-log" id="messageLog" aria-live="polite"></div>
 
-          <section class="activity-panel instrument-panel" aria-labelledby="activityTitle">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Recent activity</p>
-                <h2 id="activityTitle">Handoff ledger</h2>
-              </div>
-              <span class="tiny-state">Audit</span>
-            </div>
-            <div id="handoffList">Loading handoffs...</div>
-          </section>
-
-          <section class="approval-panel instrument-panel" id="approvals" aria-labelledby="approvalTitle">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Approvals</p>
-                <h2 id="approvalTitle">Waiting gate</h2>
-              </div>
-              <span class="tiny-state gold">Required</span>
-            </div>
-            <div class="approval-copy">
-              <strong>No high-risk action runs from this surface.</strong>
-              <span>Destructive, credential, financial, and irreversible actions stay behind laptop-side approval.</span>
-            </div>
-          </section>
-
-          <section class="system-panel instrument-panel" id="system" aria-labelledby="systemTitle">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">System overview</p>
-                <h2 id="systemTitle">Local health</h2>
-              </div>
-              <span class="tiny-state">Live</span>
-            </div>
-            <div class="ring-row" aria-label="System metrics">
-              <div class="system-ring"><strong>10%</strong><span>CPU</span></div>
-              <div class="system-ring violet"><strong>51%</strong><span>RAM</span></div>
-              <div class="system-ring teal"><strong>37%</strong><span>Disk</span></div>
-            </div>
-          </section>
+          <div class="subtitle-bar" id="subtitleBar" aria-live="polite" aria-atomic="true">
+            <span id="subtitleSpeaker">Arceus</span>
+            <p id="subtitleText">Wake the system when you are ready.</p>
+          </div>
         </section>
 
-        <form class="bottom-composer" id="chatForm">
-          <div class="mode-tabs" aria-label="Conversation modes">
-            <span class="active">Chat</span>
-            <span>Compose</span>
-            <span>Research</span>
-            <span>Execute</span>
-            <span>Debug</span>
-          </div>
-          <div class="composer-row">
-            <textarea id="chatInput" rows="2" placeholder="Ask anything, Arceus..."></textarea>
-            <button type="submit" title="Send message">Send</button>
-          </div>
-        </form>
+        <aside class="arceus-rail" aria-label="Animated Arceus avatar">
+          <section class="avatar-card panel">
+            <div class="avatar-stage" aria-label="Arceus avatar">
+              <div class="circuit-field" aria-hidden="true"></div>
+              <button class="avatar-core" id="avatarCore" type="button" aria-label="Interact with Arceus">
+                <span class="halo halo-one"></span>
+                <span class="halo halo-two"></span>
+                <span class="halo halo-three"></span>
+                <span class="avatar-figure" aria-hidden="true">
+                  <img src="/assets/generated/arceus-command-avatar.png" alt="" />
+                </span>
+                <span class="jewel jewel-top">Plan</span>
+                <span class="jewel jewel-right">Agents</span>
+                <span class="jewel jewel-bottom">Memory</span>
+                <span class="jewel jewel-left">Risk</span>
+              </button>
+            </div>
+            <div class="avatar-caption" aria-hidden="true">
+              <span id="presenceTitle">Watchful</span>
+              <span id="presenceText">Ready.</span>
+            </div>
+          </section>
+        </aside>
       </main>
     </div>
 
-    <script src="/assets/app.js"></script>
+    <script src="/assets/app.js?v=project-task-flow"></script>
   </body>
 </html>

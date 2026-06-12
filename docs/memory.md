@@ -44,6 +44,13 @@ Best for:
 - linked thinking;
 - decision records.
 
+For the current build, Obsidian is the only long-term brain vault. Arceus uses
+the iCloud Obsidian vault:
+
+```text
+/Users/brianng/Library/Mobile Documents/iCloud~md~obsidian/Documents
+```
+
 ### Notion
 
 Structured workspace and database-style knowledge.
@@ -90,6 +97,34 @@ The first memory skill should:
 4. Update Obsidian.
 5. Queue or prepare a Notion update.
 6. Record the update in Postgres.
+
+## Automatic Status Tracker
+
+The status tracker is the first memory automation because it reduces repeated
+context loading.
+
+Arceus records compact status updates after:
+
+- meaningful chat sessions;
+- Codex handoff creation, start, completion, or failure;
+- worker task completion or failure;
+- future agent and workflow lifecycle events.
+
+Each update is stored in Postgres and written to Obsidian when the vault is
+available.
+
+Generated Obsidian locations:
+
+```text
+Arceus/00_System/Status Tracker/
+Arceus/00_System/Current State.md
+```
+
+Future agents should inspect this first:
+
+```bash
+./scripts/arceus status-summary
+```
 
 ## Memory Hygiene
 

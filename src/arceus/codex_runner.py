@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from arceus.config import Settings
 from arceus.conversation import ConversationStore
+from arceus.path_policy import ensure_write_allowed
 
 
 class CodexRunError(RuntimeError):
@@ -91,12 +92,12 @@ def _execute_handoff_with_codex(
     handoff: dict[str, Any],
 ) -> dict[str, Any]:
     store = ConversationStore(settings)
-    run_dir = settings.root / "outputs" / "codex-runs" / handoff_id
+    run_dir = ensure_write_allowed(settings, settings.root / "outputs" / "codex-runs" / handoff_id)
     run_dir.mkdir(parents=True, exist_ok=True)
-    prompt_path = run_dir / "prompt.md"
-    result_path = run_dir / "result.md"
-    stdout_path = run_dir / "stdout.txt"
-    stderr_path = run_dir / "stderr.txt"
+    prompt_path = ensure_write_allowed(settings, run_dir / "prompt.md")
+    result_path = ensure_write_allowed(settings, run_dir / "result.md")
+    stdout_path = ensure_write_allowed(settings, run_dir / "stdout.txt")
+    stderr_path = ensure_write_allowed(settings, run_dir / "stderr.txt")
 
     prompt = str(handoff["handoff_prompt"])
     prompt_path.write_text(prompt, encoding="utf-8")
@@ -169,9 +170,9 @@ def _run_background(settings: Settings, handoff_id: str, handoff: dict[str, Any]
 
 
 def _build_codex_exec_command(settings: Settings, result_path: Path) -> list[str]:
+    ensure_write_allowed(settings, settings.root)
+    ensure_write_allowed(settings, result_path)
     command = [settings.codex_bin]
-    if settings.codex_approval_policy:
-        command.extend(["--ask-for-approval", settings.codex_approval_policy])
     command.extend(
         [
             "exec",

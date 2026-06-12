@@ -7,6 +7,7 @@ from psycopg.types.json import Jsonb
 
 from arceus.config import Settings
 from arceus.db import connect
+from arceus.status import StatusTracker, StatusUpdate, truncate
 
 
 MessageRow = Dict[str, Any]
@@ -23,6 +24,7 @@ class ConversationTurn:
 class ConversationStore:
     def __init__(self, settings: Settings):
         self.settings = settings
+        self.status_tracker = StatusTracker(settings)
 
     def create_session(self, title: str = "Arceus Conversation") -> str:
         with connect(self.settings) as conn:
@@ -121,6 +123,20 @@ class ConversationStore:
         )
         self.add_avatar_event(turn.session_id, "speaking", "Arceus responded.")
         self.add_avatar_event(turn.session_id, "idle", "Arceus returned to watchful idle.")
+        if _is_meaningful_chat(turn.user_message, turn.assistant_message):
+            self._record_status_update(
+                StatusUpdate(
+                    actor="arceus",
+                    runtime=turn.runtime,
+                    workstream="Conversation",
+                    status="captured",
+                    summary=f"Conversation checkpoint: {truncate(turn.user_message)}",
+                    next_actions=_extract_next_actions(turn.assistant_message),
+                    memory_notes=truncate(turn.assistant_message, 420),
+                    source_type="conversation_session",
+                    source_id=turn.session_id,
+                )
+            )
 
     def create_runtime_handoff(
         self,
@@ -159,6 +175,22 @@ class ConversationStore:
                     "Codex handoff packet drafted.",
                     {"handoff_id": handoff_id, "runtime": runtime},
                 )
+                self._record_status_update(
+                    StatusUpdate(
+                        actor="arceus",
+                        runtime=runtime,
+                        workstream="Execution Runtime",
+                        status="drafted",
+                        summary=f"Codex handoff drafted: {truncate(user_intent)}",
+                        next_actions=[
+                            f"Run or record a result for handoff {handoff_id}.",
+                        ],
+                        memory_notes="A supervised Codex handoff was created and is awaiting execution or manual result recording.",
+                        linked_task=handoff_id,
+                        source_type="runtime_handoff",
+                        source_id=handoff_id,
+                    )
+                )
                 return handoff_id
 
     def record_handoff_result(
@@ -180,7 +212,7 @@ class ConversationStore:
                         completed_at = now(),
                         updated_at = now()
                     WHERE id = %s
-                    RETURNING session_id
+                    RETURNING session_id, runtime, user_intent
                     """,
                     (result_text, result_summary, memory_summary, handoff_id),
                 ).fetchone()
@@ -197,6 +229,20 @@ class ConversationStore:
                         "Codex handoff result recorded.",
                         {"handoff_id": handoff_id},
                     )
+                self._record_status_update(
+                    StatusUpdate(
+                        actor="codex",
+                        runtime=str(row["runtime"]),
+                        workstream="Execution Runtime",
+                        status="completed",
+                        summary=result_summary or f"Codex handoff result recorded: {truncate(str(row['user_intent']))}",
+                        next_actions=[],
+                        memory_notes=memory_summary or truncate(result_text, 420),
+                        linked_task=handoff_id,
+                        source_type="runtime_handoff",
+                        source_id=handoff_id,
+                    )
+                )
                 return True
 
     def mark_handoff_running(self, handoff_id: str) -> bool:
@@ -209,7 +255,7 @@ class ConversationStore:
                         updated_at = now()
                     WHERE id = %s
                       AND status IN ('drafted', 'failed')
-                    RETURNING session_id
+                    RETURNING session_id, runtime, user_intent
                     """,
                     (handoff_id,),
                 ).fetchone()
@@ -226,6 +272,19 @@ class ConversationStore:
                         "Codex autorun started.",
                         {"handoff_id": handoff_id},
                     )
+                self._record_status_update(
+                    StatusUpdate(
+                        actor="codex",
+                        runtime=str(row["runtime"]),
+                        workstream="Execution Runtime",
+                        status="running",
+                        summary=f"Codex autorun started: {truncate(str(row['user_intent']))}",
+                        next_actions=[f"Wait for handoff {handoff_id} to complete or fail."],
+                        linked_task=handoff_id,
+                        source_type="runtime_handoff",
+                        source_id=handoff_id,
+                    )
+                )
                 return True
 
     def mark_handoff_failed(
@@ -247,7 +306,7 @@ class ConversationStore:
                         completed_at = now(),
                         updated_at = now()
                     WHERE id = %s
-                    RETURNING session_id
+                    RETURNING session_id, runtime, user_intent
                     """,
                     (result_text, result_summary, memory_summary, handoff_id),
                 ).fetchone()
@@ -264,6 +323,21 @@ class ConversationStore:
                         "Codex autorun failed.",
                         {"handoff_id": handoff_id},
                     )
+                self._record_status_update(
+                    StatusUpdate(
+                        actor="codex",
+                        runtime=str(row["runtime"]),
+                        workstream="Execution Runtime",
+                        status="failed",
+                        summary=result_summary or f"Codex handoff failed: {truncate(str(row['user_intent']))}",
+                        blockers=[result_summary or truncate(result_text, 260)],
+                        next_actions=[f"Inspect failed handoff {handoff_id} before retrying."],
+                        memory_notes=memory_summary or truncate(result_text, 420),
+                        linked_task=handoff_id,
+                        source_type="runtime_handoff",
+                        source_id=handoff_id,
+                    )
+                )
                 return True
 
     def get_handoff(self, handoff_id: str) -> Optional[dict[str, Any]]:
@@ -345,10 +419,64 @@ class ConversationStore:
                 (self.settings.owner_id,),
             ).fetchall()
 
+        try:
+            current_status = self.status_tracker.current_state(limit=limit)
+        except Exception:
+            current_status = {
+                "owner_id": self.settings.owner_id,
+                "obsidian_vault_path": str(self.settings.obsidian_vault_path) if self.settings.obsidian_vault_path else None,
+                "obsidian_current_state_path": None,
+                "latest_update": None,
+                "recent_updates": [],
+                "next_actions": ["Run ./scripts/arceus setup-db to create the status tracker tables."],
+                "blockers": ["Status tracker is not initialized yet."],
+            }
+
         return {
             "owner_id": self.settings.owner_id,
             "runtime_mode": self.settings.runtime_mode,
             "recent_sessions": [dict(row) for row in session_rows],
             "recent_handoffs": [dict(row) for row in handoff_rows],
             "task_counts": {row["status"]: row["count"] for row in task_rows},
+            "current_status": current_status,
         }
+
+    def _record_status_update(self, update: StatusUpdate) -> None:
+        try:
+            self.status_tracker.record(update)
+        except Exception:
+            return
+
+
+def _is_meaningful_chat(user_message: str, assistant_message: str) -> bool:
+    text = f"{user_message}\n{assistant_message}".lower()
+    keywords = {
+        "plan",
+        "implement",
+        "build",
+        "decision",
+        "roadmap",
+        "status",
+        "agent",
+        "task",
+        "project",
+        "memory",
+        "approval",
+        "dashboard",
+        "workflow",
+        "obsidian",
+        "codex",
+    }
+    return len(user_message.strip()) > 140 or any(keyword in text for keyword in keywords)
+
+
+def _extract_next_actions(assistant_message: str) -> list[str]:
+    actions = []
+    for line in assistant_message.splitlines():
+        cleaned = line.strip().strip("-").strip()
+        if not cleaned:
+            continue
+        lower = cleaned.lower()
+        if lower.startswith(("next ", "run ", "open ", "review ", "record ", "implement ", "create ")):
+            actions.append(cleaned[:220])
+    return actions[:5]

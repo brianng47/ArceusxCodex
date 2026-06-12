@@ -1,0 +1,7 @@
+interface:
+  display_name: "Frontend Motion Taste"
+  short_description: "Motion and anti-generic frontend design judgment"
+  default_prompt: "Use $frontend-motion-taste to redesign this dashboard with restrained motion and non-generic frontend taste."
+
+policy:
+  allow_implicit_invocation: true

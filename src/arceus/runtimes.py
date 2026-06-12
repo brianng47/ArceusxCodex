@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional, Protocol
 
 from arceus.config import Settings
 from arceus.conversation import MessageRow
+from arceus.path_policy import ensure_write_allowed
 from arceus.prompts import ARCEUS_RUNTIME_INSTRUCTIONS
 
 
@@ -275,7 +275,8 @@ def inspect_codex_app_server(
     report["daemon_version"] = daemon_version
     report["daemon_online"] = bool(daemon_version.get("ok"))
 
-    output_dir = Path(schema_dir) if schema_dir else Path(tempfile.mkdtemp(prefix="arceus-codex-app-schema-"))
+    output_dir = Path(schema_dir) if schema_dir else settings.arceus_state_path / "codex-app-schema"
+    output_dir = ensure_write_allowed(settings, output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     command = [resolved, "app-server", "generate-json-schema", "--out", str(output_dir)]

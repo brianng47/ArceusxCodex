@@ -45,7 +45,7 @@ after the experimental protocol is proven stable enough.
 First update the database tables:
 
 ```bash
-cd /Users/brianng/Documents/Arceus
+cd /Users/brianng/Developer/Arceus
 ./scripts/arceus setup-db
 ```
 

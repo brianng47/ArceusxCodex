@@ -9,6 +9,7 @@ from psycopg.types.json import Jsonb
 
 from arceus.config import Settings
 from arceus.db import connect
+from arceus.status import StatusTracker, StatusUpdate, truncate
 
 
 TaskRow = Dict[str, Any]
@@ -28,6 +29,7 @@ class EnqueueRequest:
 class RemoteTaskQueue:
     def __init__(self, settings: Settings):
         self.settings = settings
+        self.status_tracker = StatusTracker(settings)
 
     def enqueue(self, request: EnqueueRequest) -> str:
         with connect(self.settings) as conn:
@@ -102,6 +104,7 @@ class RemoteTaskQueue:
                 return dict(row)
 
     def complete(self, task_id: str, result: Dict[str, Any]) -> None:
+        task = self.get_task(task_id)
         with connect(self.settings) as conn:
             with conn.transaction():
                 conn.execute(
@@ -117,9 +120,11 @@ class RemoteTaskQueue:
                 )
                 self._add_event(conn, task_id, "completed", "Task completed.", result)
                 conn.execute("SELECT pg_notify('remote_task_results', %s)", (task_id,))
+        self._record_task_status(task_id, task, "completed", result)
 
     def fail(self, task_id: str, error_message: str, result: Optional[Dict[str, Any]] = None) -> None:
         safe_result = result or {"status": "error", "message": error_message}
+        task = self.get_task(task_id)
         with connect(self.settings) as conn:
             with conn.transaction():
                 conn.execute(
@@ -136,6 +141,7 @@ class RemoteTaskQueue:
                 )
                 self._add_event(conn, task_id, "failed", error_message, safe_result)
                 conn.execute("SELECT pg_notify('remote_task_results', %s)", (task_id,))
+        self._record_task_status(task_id, task, "failed", safe_result, error_message)
 
     def get_task(self, task_id: str) -> Optional[TaskRow]:
         with connect(self.settings) as conn:
@@ -173,6 +179,39 @@ class RemoteTaskQueue:
             """,
             (task_id, event_type, message, Jsonb(data or {})),
         )
+
+    def _record_task_status(
+        self,
+        task_id: str,
+        task: Optional[TaskRow],
+        status: str,
+        result: Dict[str, Any],
+        error_message: str | None = None,
+    ) -> None:
+        try:
+            kind = str(task.get("kind") if task else "unknown")
+            payload = task.get("payload") if task else {}
+            summary = str(result.get("summary") or result.get("message") or f"Task {status}.")
+            blockers = [error_message or summary] if status == "failed" else []
+            actor = str((task.get("claimed_by") if task else None) or self.settings.worker_id)
+            self.status_tracker.record(
+                StatusUpdate(
+                    actor=actor,
+                    runtime="local_worker",
+                    workstream="Task Queue",
+                    status=status,
+                    summary=f"{kind} task {status}: {truncate(summary)}",
+                    blockers=blockers,
+                    next_actions=[f"Review task {task_id} before retrying."] if status == "failed" else [],
+                    memory_notes=truncate(str(result), 420),
+                    linked_task=task_id,
+                    source_type="remote_task",
+                    source_id=task_id,
+                    metadata={"kind": kind, "payload": payload},
+                )
+            )
+        except Exception:
+            return
 
 
 def json_default(value: Any) -> str:

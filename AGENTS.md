@@ -42,6 +42,11 @@ Do not jump into implementation before confirming:
   later promotes a workflow to automation.
 - Keep an audit trail for substantial decisions and actions.
 - Hide sensitive error details from remote surfaces by default.
+- Do not grant Documents-wide access. The repo should live at
+  `/Users/brianng/Developer/Arceus`; Obsidian read/write, repo-local
+  `.arceus-state`, read-only `~/.codex`, and explicit project folders are
+  allowed by policy. Every future filesystem agent must check the Arceus path
+  policy before reading or writing local files.
 
 ## Design Rules
 
@@ -59,6 +64,11 @@ Use `docs/ui-design-rules.md` as the source of truth for visual direction.
 The dashboard should take high-level inspiration from holographic command
 interfaces: dark spatial depth, luminous circuitry, animated status panels, and
 a central living avatar/core.
+
+For frontend redesign, animation, UI polish, dashboard critique, decluttering,
+or visual implementation work, automatically use
+`skills/frontend-motion-taste/SKILL.md` even if the user does not name it. It
+preserves the reusable motion and anti-generic design rules for future agents.
 
 Private fan-project rule:
 

@@ -196,3 +196,74 @@ Implementation note:
 button use `workspace-write` sandboxing by default. Run artifacts are stored
 under `outputs/codex-runs/<handoff-id>/`. Full laptop-wide access remains gated
 behind future approval UI work.
+
+## 2026-06-11: Automatic Status Tracker
+
+Decision:
+
+Build the session status tracker before the rest of the full dashboard
+backbone.
+
+Rationale:
+
+Future agents should not spend tokens rereading long chats, scattered docs, and
+handoff logs. Arceus needs a compact current-state record that captures what
+changed, what matters next, and where the system is blocked.
+
+Implementation note:
+
+Postgres stores structured `status_updates` records for dashboard/API use.
+Obsidian stores human-readable generated notes under:
+
+```text
+Arceus/00_System/Status Tracker/
+Arceus/00_System/Current State.md
+```
+
+The canonical Obsidian vault is:
+
+```text
+/Users/brianng/Library/Mobile Documents/iCloud~md~obsidian/Documents
+```
+
+Agents should read `./scripts/arceus status-summary` before substantial work.
+
+## 2026-06-11: Local Control v0
+
+Decision:
+
+Add a dashboard Local Control layer with a fixed allowed-action catalog instead
+of arbitrary terminal execution.
+
+Rationale:
+
+The user wants to stop copy/pasting routine commands into Terminal. The safe
+next step is a whitelist of local actions with approval, captured output, and
+status-tracker records. Unrestricted command execution would give Arceus too
+much power before the permission and audit surfaces are mature.
+
+Implementation note:
+
+Local Control v0 includes system checks, Codex checks, status summary,
+database initialization, status tracker initialization, and running the latest
+Codex handoff. State-changing actions require dashboard approval. Each run is
+recorded in `local_action_runs` and mirrored into the status tracker.
+
+## 2026-06-11: Dashboard-Native Approval Card
+
+Decision:
+
+Replace browser confirmation prompts for Local Control with an in-dashboard
+approval card.
+
+Rationale:
+
+Browser popups are a stopgap. They interrupt the Arceus experience and do not
+show enough structured context. Approval should feel like part of the operating
+surface: action, risk, expected output, approve, or decline.
+
+Implementation note:
+
+The Local Control drawer now shows an approval card for state-changing actions.
+The card does not introduce arbitrary shell execution. It only approves actions
+already present in the allowed action catalog.

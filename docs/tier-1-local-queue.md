@@ -29,7 +29,7 @@ task row is what survives sleep, restart, and crashes.
 Run this from the project folder:
 
 ```bash
-cd /Users/brianng/Documents/Arceus
+cd /Users/brianng/Developer/Arceus
 ./scripts/arceus setup-db
 ```
 
@@ -97,7 +97,7 @@ The worker should say it processed a task shortly after startup.
 Open a second Terminal window and run:
 
 ```bash
-cd /Users/brianng/Documents/Arceus
+cd /Users/brianng/Developer/Arceus
 ./scripts/arceus show-task "$TASK_ID"
 ```
 

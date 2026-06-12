@@ -6,13 +6,16 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from arceus.codex_runner import start_handoff_codex_run
 from arceus.config import Settings
 from arceus.conversation import ConversationStore, ConversationTurn
+from arceus.dashboard_backbone import DashboardBackbone
+from arceus.local_control import LocalControlService
 from arceus.queue import json_default
 from arceus.runtimes import get_runtime, inspect_codex_app_server, inspect_codex_runtime
+from arceus.status import StatusTracker, StatusUpdate
 
 
 WEB_ROOT = Path(__file__).resolve().parents[2] / "web"
@@ -22,6 +25,9 @@ class ArceusWebApp:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.store = ConversationStore(settings)
+        self.status_tracker = StatusTracker(settings)
+        self.local_control = LocalControlService(settings)
+        self.backbone = DashboardBackbone(settings)
 
     def create_handler(self) -> type[BaseHTTPRequestHandler]:
         app = self
@@ -68,6 +74,66 @@ class ArceusWebApp:
             self._send_json(handler, self.store.list_handoffs(limit))
             return
 
+        if path == "/api/status":
+            params = parse_qs(parsed.query)
+            limit = _int_param(params.get("limit"), 10)
+            try:
+                self._send_json(handler, self.status_tracker.latest(limit))
+            except Exception:
+                self._send_json(handler, [])
+            return
+
+        if path == "/api/status/current":
+            params = parse_qs(parsed.query)
+            limit = _int_param(params.get("limit"), 5)
+            try:
+                self._send_json(handler, self.status_tracker.current_state(limit))
+            except Exception:
+                self._send_json(
+                    handler,
+                    {
+                        "owner_id": self.settings.owner_id,
+                        "obsidian_vault_path": str(self.settings.obsidian_vault_path)
+                        if self.settings.obsidian_vault_path
+                        else None,
+                        "obsidian_current_state_path": None,
+                        "latest_update": None,
+                        "recent_updates": [],
+                        "next_actions": ["Run ./scripts/arceus setup-db to initialize status tracking."],
+                        "blockers": ["Status tracker tables are not ready."],
+                    },
+                )
+            return
+
+        if path == "/api/local-actions":
+            params = parse_qs(parsed.query)
+            limit = _int_param(params.get("limit"), 8)
+            self._send_json(
+                handler,
+                {
+                    "actions": self.local_control.catalog(),
+                    "recent_runs": self.local_control.recent_runs(limit),
+                },
+            )
+            return
+
+        if path.startswith("/api/zones/"):
+            params = parse_qs(parsed.query)
+            zone = path.rsplit("/", 1)[-1]
+            query = _optional_str((params.get("q") or [""])[0]) or ""
+            self._send_json(handler, self.backbone.zone(zone, query=query))
+            return
+
+        if path.startswith("/api/projects/"):
+            project_slug = unquote(path.rsplit("/", 1)[-1])
+            try:
+                self._send_json(handler, self.backbone.project_detail(project_slug))
+            except KeyError as exc:
+                self._send_error(handler, HTTPStatus.NOT_FOUND, str(exc))
+            except ValueError as exc:
+                self._send_error(handler, HTTPStatus.BAD_REQUEST, str(exc))
+            return
+
         if path.startswith("/api/handoffs/"):
             handoff_id = path.rsplit("/", 1)[-1]
             handoff = self.store.get_handoff(handoff_id)
@@ -92,6 +158,10 @@ class ArceusWebApp:
             self._with_json_body(handler, self._handle_chat)
             return
 
+        if path == "/api/tasks":
+            self._with_json_body(handler, self._handle_create_task)
+            return
+
         if path.startswith("/api/handoffs/") and path.endswith("/result"):
             handoff_id = path.split("/")[-2]
             self._with_json_body(handler, lambda body: self._handle_handoff_result(handoff_id, body))
@@ -100,6 +170,11 @@ class ArceusWebApp:
         if path.startswith("/api/handoffs/") and path.endswith("/run"):
             handoff_id = path.split("/")[-2]
             self._with_json_body(handler, lambda body: self._handle_handoff_run(handoff_id, body))
+            return
+
+        if path.startswith("/api/local-actions/") and path.endswith("/run"):
+            action_key = path.split("/")[-2]
+            self._with_json_body(handler, lambda body: self._handle_local_action_run(action_key, body))
             return
 
         self._send_error(handler, HTTPStatus.NOT_FOUND, "Not found.")
@@ -183,6 +258,44 @@ class ArceusWebApp:
         if confirm != "run_codex":
             raise ValueError("Codex autorun requires explicit confirmation.")
         return start_handoff_codex_run(self.settings, handoff_id)
+
+    def _handle_local_action_run(self, action_key: str, body: dict[str, Any]) -> dict[str, Any]:
+        confirm = _optional_str(body.get("confirm"))
+        payload = body.get("payload") if isinstance(body.get("payload"), dict) else {}
+        return self.local_control.run(action_key, confirm=confirm, payload=payload)
+
+    def _handle_create_task(self, body: dict[str, Any]) -> dict[str, Any]:
+        task = self.backbone.create_task(body)
+        project_slug = _optional_str(body.get("project_slug"))
+        agent_slug = _optional_str(body.get("agent_slug"))
+        try:
+            status_update = self.status_tracker.record(
+                StatusUpdate(
+                    actor="arceus_dashboard",
+                    runtime=self.settings.runtime_mode,
+                    workstream="Dashboard Tasks",
+                    status="created",
+                    summary=f"Dashboard task created: {task['title']}",
+                    decisions=[
+                        "Task was captured in the dashboard as planned work.",
+                        "Execution remains approval-gated; creating the task did not run local tools.",
+                    ],
+                    next_actions=[
+                        "Review the task, confirm risk level, and approve execution before local runtime launch.",
+                    ],
+                    memory_notes=task["summary"],
+                    linked_project=project_slug,
+                    linked_task=task["slug"],
+                    linked_agent=agent_slug,
+                    source_type="dashboard_task",
+                    source_id=str(task["id"]),
+                    metadata={"risk_level": task["risk_level"], "approval_state": task["approval_state"]},
+                )
+            )
+        except Exception as exc:
+            status_update = {"error": str(exc)}
+
+        return {"ok": True, "task": task, "status_update": status_update}
 
     def _with_json_body(
         self,

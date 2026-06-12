@@ -83,6 +83,31 @@ Rules:
 - do not rely on external asset tools for critical app behavior;
 - avoid direct copies of protected character art or reference imagery.
 
+Initial reusable design skill:
+
+- `frontend-motion-taste`
+
+Location:
+
+- `skills/frontend-motion-taste/SKILL.md`
+
+Expected behavior:
+
+1. Audit UI purpose and clutter before editing.
+2. Apply restrained, purposeful motion inspired by Emil Kowalski's animation
+   principles.
+3. Apply anti-generic frontend judgment inspired by Taste Skill.
+4. Align with Impeccable-style critique, distill, animate, and polish flows
+   when Claude/Codex has that skill installed.
+5. Preserve Arceus' dashboard doctrine: conversation first, urgent state second,
+   Arceus presence always visible but not obstructive.
+
+Invocation rule:
+
+- Codex and Claude agents should use this automatically for frontend redesign,
+  animation, UI polish, dashboard critique, decluttering, and visual
+  implementation tasks. Brian should not need to type the skill name.
+
 ### Voice and Avatar Skills
 
 Purpose:

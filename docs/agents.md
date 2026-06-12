@@ -68,6 +68,17 @@ Approval policy:
 - every write requires approval;
 - destructive actions require explicit high-risk approval.
 
+Path boundary:
+
+- all filesystem access must pass through the Arceus path policy;
+- default read roots are the Arceus repo, Obsidian vault, repo-local
+  `.arceus-state`, and read-only `~/.codex`;
+- default write roots are the Arceus repo, Obsidian vault, and repo-local
+  `.arceus-state`;
+- Documents-wide access is intentionally not part of the default policy;
+- add external project folders explicitly through `ARCEUS_EXTRA_READ_PATHS` and
+  `ARCEUS_EXTRA_WRITE_PATHS` only after the project needs them.
+
 ### Research Specialist
 
 Purpose:
