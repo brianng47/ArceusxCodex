@@ -17,10 +17,12 @@ from arceus.dashboard_launcher import (
 from arceus.filesystem_agent import FilesystemAgent
 from arceus.local_control import LocalControlService
 from arceus.migrations import migrate
+from arceus.os_kernel import JarvisOSKernel
 from arceus.path_policy import describe_path_policy, ensure_read_allowed
 from arceus.queue import EnqueueRequest, RemoteTaskQueue, to_pretty_json
 from arceus.runtimes import get_runtime, inspect_codex_app_server, inspect_codex_runtime
 from arceus.status import StatusTracker, StatusUpdate, initialize_status_tracker
+from arceus.vault_memory import VaultMemory, WikiPageSpec
 from arceus.web import serve
 from arceus.worker import drain_once, run_polling_worker
 
@@ -114,6 +116,34 @@ def build_parser() -> argparse.ArgumentParser:
     memory = subcommands.add_parser("memory-summary", help="Summarize recent Arceus memory records.")
     memory.add_argument("--limit", type=int, default=5)
     memory.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    vault = subcommands.add_parser("vault", help="Operate the root Obsidian LLM-wiki memory layer.")
+    vault_subcommands = vault.add_subparsers(dest="vault_command", required=True)
+
+    vault_init = vault_subcommands.add_parser("init", help="Ensure the root LLM-wiki vault structure exists.")
+    vault_init.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    vault_context = vault_subcommands.add_parser("context", help="Read map, index, hot cache, and current state.")
+    vault_context.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    vault_audit = vault_subcommands.add_parser("audit", help="Run audit-only memory self-heal checks.")
+    vault_audit.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    vault_write = vault_subcommands.add_parser("write-page", help="Create or update one root wiki page.")
+    vault_write.add_argument("path", help="Relative wiki page path, for example projects/example.md.")
+    vault_write.add_argument("--title", required=True)
+    vault_write.add_argument("--body", default=None)
+    vault_write.add_argument("--body-file", default=None)
+    vault_write.add_argument("--tag", action="append", default=[])
+    vault_write.add_argument("--source", action="append", default=[])
+    vault_write.add_argument("--related", action="append", default=[])
+    vault_write.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    os_plan = subcommands.add_parser("os-plan", help="Draft a Jarvis OS workflow plan from a request.")
+    os_plan.add_argument("request")
+    os_plan.add_argument("--project", default=None)
+    os_plan.add_argument("--save", action="store_true", help="Save the drafted plan into the root wiki.")
+    os_plan.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
 
     status_summary = subcommands.add_parser(
         "status-summary",
@@ -380,6 +410,65 @@ def main(argv: list[str] | None = None) -> int:
             print(to_pretty_json(summary))
         else:
             print(format_memory_summary(summary))
+        return 0
+
+    if args.command == "vault":
+        memory = VaultMemory(settings)
+        if args.vault_command == "init":
+            result = memory.ensure_structure()
+            if args.json:
+                print(to_pretty_json(result))
+            else:
+                print(format_vault_init(result))
+            return 0
+        if args.vault_command == "context":
+            result = memory.read_context()
+            if args.json:
+                print(to_pretty_json(result))
+            else:
+                print(format_vault_context(result))
+            return 0
+        if args.vault_command == "audit":
+            result = memory.audit()
+            if args.json:
+                print(to_pretty_json(result))
+            else:
+                print(format_vault_audit(result))
+            return 0
+        if args.vault_command == "write-page":
+            body = args.body
+            if args.body_file:
+                body_path = ensure_read_allowed(settings, args.body_file)
+                body = body_path.read_text(encoding="utf-8")
+            if not body:
+                print("Provide --body or --body-file.", file=sys.stderr)
+                return 1
+            result = memory.upsert_page(
+                WikiPageSpec(
+                    path=args.path,
+                    title=args.title,
+                    body=body,
+                    tags=tuple(args.tag),
+                    sources=tuple(args.source),
+                    related=tuple(args.related),
+                )
+            )
+            if args.json:
+                print(to_pretty_json(result))
+            else:
+                print(format_vault_write(result))
+            return 0
+
+    if args.command == "os-plan":
+        kernel = JarvisOSKernel(settings)
+        plan = kernel.draft_plan(args.request, project=args.project)
+        payload = {"plan": plan.to_dict()}
+        if args.save:
+            payload["saved"] = kernel.save_plan(plan)
+        if args.json:
+            print(to_pretty_json(payload))
+        else:
+            print(format_jarvis_plan(payload))
         return 0
 
     if args.command == "status-summary":
@@ -686,6 +775,103 @@ def format_status_summary(summary: dict) -> str:
     for update in recent:
         lines.append(f"- {update['status']} / {update['workstream']}: {update['summary']}")
 
+    return "\n".join(lines)
+
+
+def format_vault_init(result: dict) -> str:
+    lines = [
+        "Vault LLM-Wiki",
+        "==============",
+        str(result.get("summary") or "Vault structure checked."),
+        f"Vault: {result.get('vault_path')}",
+        f"Index: {result.get('index_path')}",
+        f"Hot cache: {result.get('hot_path')}",
+        f"Log: {result.get('log_path')}",
+    ]
+    if result.get("created_dirs"):
+        lines.extend(["", "Created Directories", "-------------------"])
+        lines.extend(f"- {path}" for path in result["created_dirs"])
+    if result.get("created_files"):
+        lines.extend(["", "Created Files", "-------------"])
+        lines.extend(f"- {path}" for path in result["created_files"])
+    return "\n".join(lines)
+
+
+def format_vault_context(result: dict) -> str:
+    lines = [
+        "Vault Memory Context",
+        "====================",
+        str(result.get("summary") or "Context loaded."),
+        f"Vault: {result.get('vault_path')}",
+        f"Map: {result.get('map_path')}",
+        f"Index: {result.get('index_path')}",
+        f"Hot cache: {result.get('hot_path')}",
+        "",
+        "Hot Context Preview",
+        "-------------------",
+        str(result.get("hot") or "")[:1600],
+    ]
+    return "\n".join(lines)
+
+
+def format_vault_audit(result: dict) -> str:
+    lines = [
+        "Vault Audit",
+        "===========",
+        str(result.get("summary") or "Audit completed."),
+        f"Report: {result.get('report_path')}",
+    ]
+    issues = result.get("issues") or {}
+    for label, values in issues.items():
+        lines.extend(["", label.replace("_", " ").title(), "-" * len(label)])
+        if values:
+            lines.extend(f"- {value}" for value in values[:20])
+        else:
+            lines.append("- None")
+    return "\n".join(lines)
+
+
+def format_vault_write(result: dict) -> str:
+    return "\n".join(
+        [
+            "Vault Wiki Page",
+            "===============",
+            str(result.get("summary") or "Page updated."),
+            f"Path: {result.get('path')}",
+            f"Created: {'yes' if result.get('created') else 'no'}",
+        ]
+    )
+
+
+def format_jarvis_plan(payload: dict) -> str:
+    plan = payload["plan"]
+    lines = [
+        "Jarvis OS Plan",
+        "==============",
+        f"Plan id: {plan['plan_id']}",
+        "",
+        "Problem Statement",
+        "-----------------",
+        plan["problem_statement"],
+        "",
+        "Assumptions",
+        "-----------",
+    ]
+    lines.extend(f"- {item}" for item in plan["assumptions"])
+    lines.extend(["", "Clarifying Questions", "--------------------"])
+    questions = plan.get("clarifying_questions") or []
+    if questions:
+        lines.extend(f"- {question}" for question in questions)
+    else:
+        lines.append("- None required before planning.")
+    lines.extend(["", "Approval Gates", "--------------"])
+    for gate in plan.get("approval_gates") or []:
+        lines.append(f"- {gate['title']} ({gate['risk_level']}): {gate['reason']}")
+    lines.extend(["", "Agent Runs", "----------"])
+    for run in plan.get("agent_runs") or []:
+        lines.append(f"- {run['agent']} via {run['runtime']}: {run['purpose']}")
+    if payload.get("saved"):
+        lines.extend(["", f"Saved: {payload['saved']['path']}"])
     return "\n".join(lines)
 
 

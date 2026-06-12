@@ -59,6 +59,7 @@ Manual terminal startup remains available as a fallback:
 - [Architecture](docs/architecture.md)
 - [Brain and Presence](docs/brain-and-presence.md)
 - [Codex Runtime Bridge](docs/codex-runtime-bridge.md)
+- [Jarvis OS Kernel](docs/jarvis-os-kernel.md)
 - [Codex App-Server Feasibility](docs/codex-app-server-feasibility.md)
 - [Local Dashboard](docs/local-dashboard.md)
 - [Dashboard Roadmap And Status Tracker](docs/dashboard-roadmap.md)
