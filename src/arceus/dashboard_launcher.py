@@ -161,7 +161,17 @@ def stop_dashboard(
 ) -> dict[str, Any]:
     pid_path = _pid_path(settings)
     pid = _read_pid(pid_path)
+    fallback_pids = _dashboard_port_pids(port, settings)
     if not pid:
+        if fallback_pids:
+            return _stop_pids(
+                fallback_pids,
+                pid_path,
+                host,
+                port,
+                settings,
+                summary="Dashboard stopped from the listening port.",
+            )
         return {
             "summary": "No dashboard pid file exists. If the dashboard is open, it was started outside the Arceus launcher.",
             "stopped": False,
@@ -170,26 +180,51 @@ def stop_dashboard(
 
     if not _pid_running(pid):
         _clear_pid(pid_path)
+        if fallback_pids:
+            return _stop_pids(
+                fallback_pids,
+                pid_path,
+                host,
+                port,
+                settings,
+                summary="Dashboard pid file was stale; dashboard stopped from the listening port.",
+            )
         return {
             "summary": "Dashboard pid file was stale and has been cleared.",
             "stopped": False,
             "status": dashboard_status(host, port, settings=settings),
         }
 
-    os.kill(pid, signal.SIGTERM)
+    return _stop_pids([pid], pid_path, host, port, settings, summary="Dashboard stopped.")
+
+
+def _stop_pids(
+    pids: list[int],
+    pid_path: Path,
+    host: str,
+    port: int,
+    settings: Settings | None,
+    *,
+    summary: str,
+) -> dict[str, Any]:
+    unique_pids = sorted(set(pid for pid in pids if pid > 0))
+    for pid in unique_pids:
+        if _pid_running(pid):
+            os.kill(pid, signal.SIGTERM)
+
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
-        if not _pid_running(pid):
+        if all(not _pid_running(pid) for pid in unique_pids):
             _clear_pid(pid_path)
             return {
-                "summary": "Dashboard stopped.",
+                "summary": summary,
                 "stopped": True,
                 "status": dashboard_status(host, port, settings=settings),
             }
         time.sleep(0.2)
 
     return {
-        "summary": "Dashboard stop was requested, but the process is still running.",
+        "summary": "Dashboard stop was requested, but a dashboard process is still running.",
         "stopped": False,
         "status": dashboard_status(host, port, settings=settings),
     }
@@ -282,6 +317,48 @@ def _port_open(host: str, port: int) -> bool:
             return True
     except OSError:
         return False
+
+
+def _dashboard_port_pids(port: int, settings: Settings | None = None) -> list[int]:
+    if shutil.which("lsof") is None:
+        return []
+
+    completed = subprocess.run(
+        ["lsof", "-nP", f"-tiTCP:{port}", "-sTCP:LISTEN"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode not in (0, 1):
+        return []
+
+    pids: list[int] = []
+    for line in completed.stdout.splitlines():
+        try:
+            pid = int(line.strip())
+        except ValueError:
+            continue
+        if _looks_like_dashboard_process(pid, settings):
+            pids.append(pid)
+    return pids
+
+
+def _looks_like_dashboard_process(pid: int, settings: Settings | None = None) -> bool:
+    completed = subprocess.run(
+        ["ps", "-p", str(pid), "-o", "command="],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return False
+
+    command = completed.stdout.strip()
+    if "arceus.cli" in command and " web" in f" {command} ":
+        return True
+    if settings is not None and str(settings.root) in command and "python" in command.lower():
+        return True
+    return False
 
 
 def _tail_log(max_chars: int = 2000, settings: Settings | None = None) -> str:

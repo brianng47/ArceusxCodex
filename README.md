@@ -63,6 +63,7 @@ Manual terminal startup remains available as a fallback:
 - [Local Dashboard](docs/local-dashboard.md)
 - [Dashboard Roadmap And Status Tracker](docs/dashboard-roadmap.md)
 - [Local Access Policy](docs/access-policy.md)
+- [Filesystem/Code Agent](docs/filesystem-code-agent.md)
 - [UI Design Rules](docs/ui-design-rules.md)
 - [Agent System](docs/agents.md)
 - [TCG Business Agent Ecosystem](docs/tcg-business-agent-ecosystem.md)

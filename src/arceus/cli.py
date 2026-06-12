@@ -14,6 +14,7 @@ from arceus.dashboard_launcher import (
     start_dashboard,
     stop_dashboard,
 )
+from arceus.filesystem_agent import FilesystemAgent
 from arceus.local_control import LocalControlService
 from arceus.migrations import migrate
 from arceus.path_policy import describe_path_policy, ensure_read_allowed
@@ -147,6 +148,42 @@ def build_parser() -> argparse.ArgumentParser:
 
     path_policy = subcommands.add_parser("path-policy", help="Show Arceus read/write path allowlists.")
     path_policy.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    fs_inspect = subcommands.add_parser("fs-inspect", help="Inspect an allowed file or folder with the Filesystem/Code Agent.")
+    fs_inspect.add_argument("path", nargs="?", default=".")
+    fs_inspect.add_argument("--max-depth", type=int, default=3)
+    fs_inspect.add_argument("--max-entries", type=int, default=120)
+    fs_inspect.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    fs_read = subcommands.add_parser("fs-read", help="Read an allowed text file with preview limits.")
+    fs_read.add_argument("path")
+    fs_read.add_argument("--max-bytes", type=int, default=12000)
+    fs_read.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    fs_draft = subcommands.add_parser("fs-draft", help="Draft a full-file replacement proposal without applying it.")
+    fs_draft.add_argument("path")
+    fs_draft.add_argument("--intent", required=True)
+    fs_draft.add_argument("--content", default=None)
+    fs_draft.add_argument("--content-file", default=None)
+    fs_draft.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    fs_proposals = subcommands.add_parser("fs-proposals", help="List filesystem change proposals.")
+    fs_proposals.add_argument("--limit", type=int, default=20)
+    fs_proposals.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    fs_show = subcommands.add_parser("fs-show-proposal", help="Show one filesystem proposal.")
+    fs_show.add_argument("proposal_id")
+    fs_show.add_argument("--include-content", action="store_true")
+    fs_show.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
+
+    fs_apply = subcommands.add_parser("fs-apply-proposal", help="Apply an approved filesystem proposal.")
+    fs_apply.add_argument("proposal_id")
+    fs_apply.add_argument(
+        "--confirm",
+        default=None,
+        help="Approval token. Must be apply_filesystem_proposal.",
+    )
+    fs_apply.add_argument("--json", action="store_true", help="Print raw JSON instead of readable text.")
 
     local_actions = subcommands.add_parser("local-actions", help="List dashboard-safe local actions.")
     local_actions.add_argument("--limit", type=int, default=8)
@@ -402,6 +439,65 @@ def main(argv: list[str] | None = None) -> int:
             print(to_pretty_json(policy))
         else:
             print(format_path_policy(policy))
+        return 0
+
+    if args.command == "fs-inspect":
+        result = FilesystemAgent(settings).inspect(args.path, max_depth=args.max_depth, max_entries=args.max_entries)
+        if args.json:
+            print(to_pretty_json(result))
+        else:
+            print(format_filesystem_inspect(result))
+        return 0
+
+    if args.command == "fs-read":
+        result = FilesystemAgent(settings).read_file(args.path, max_bytes=args.max_bytes)
+        if args.json:
+            print(to_pretty_json(result))
+        else:
+            print(format_filesystem_read(result))
+        return 0
+
+    if args.command == "fs-draft":
+        proposed_content = args.content
+        if args.content_file:
+            content_path = ensure_read_allowed(settings, args.content_file)
+            proposed_content = content_path.read_text(encoding="utf-8")
+        result = FilesystemAgent(settings).draft_change(
+            args.path,
+            intent=args.intent,
+            proposed_content=proposed_content,
+        )
+        if args.json:
+            print(to_pretty_json(result))
+        else:
+            print(format_filesystem_proposal_result(result))
+        return 0
+
+    if args.command == "fs-proposals":
+        result = FilesystemAgent(settings).list_proposals(args.limit)
+        if args.json:
+            print(to_pretty_json(result))
+        else:
+            print(format_filesystem_proposals(result))
+        return 0
+
+    if args.command == "fs-show-proposal":
+        result = FilesystemAgent(settings).get_proposal(args.proposal_id, include_content=args.include_content)
+        if args.json:
+            print(to_pretty_json(result))
+        else:
+            print(format_filesystem_proposal(result))
+        return 0
+
+    if args.command == "fs-apply-proposal":
+        if args.confirm != "apply_filesystem_proposal":
+            print("Filesystem proposal apply requires --confirm apply_filesystem_proposal.", file=sys.stderr)
+            return 1
+        result = FilesystemAgent(settings).apply_proposal(args.proposal_id)
+        if args.json:
+            print(to_pretty_json(result))
+        else:
+            print(format_filesystem_proposal_result(result))
         return 0
 
     if args.command == "local-actions":
@@ -662,6 +758,103 @@ def format_path_policy(policy: dict) -> str:
     lines.extend(["", "Write Roots", "-----------"])
     for path in policy.get("write_roots") or []:
         lines.append(f"- {path}")
+    return "\n".join(lines)
+
+
+def format_filesystem_inspect(result: dict) -> str:
+    lines = [
+        "Filesystem/Code Agent Inspect",
+        "=============================",
+        str(result.get("summary") or "Inspection completed."),
+    ]
+    counts = result.get("counts") or {}
+    if counts:
+        lines.append(
+            f"Files: {counts.get('files', 0)} | Folders: {counts.get('dirs', 0)} | "
+            f"Skipped: {counts.get('skipped', 0)}"
+        )
+    if result.get("truncated"):
+        lines.append("Result was truncated. Narrow the path or increase --max-entries.")
+    entries = result.get("entries") or []
+    if entries:
+        lines.extend(["", "Entries", "-------"])
+        for entry in entries[:60]:
+            size = "" if entry.get("size_bytes") is None else f" ({entry['size_bytes']} bytes)"
+            indent = "  " * int(entry.get("depth") or 0)
+            lines.append(f"- {indent}{entry.get('kind')}: {entry.get('path')}{size}")
+    file_result = result.get("file")
+    if file_result:
+        lines.extend(["", format_filesystem_read(file_result)])
+    return "\n".join(lines)
+
+
+def format_filesystem_read(result: dict) -> str:
+    lines = [
+        "Filesystem/Code Agent Read",
+        "==========================",
+        str(result.get("summary") or "File read completed."),
+        f"Size: {result.get('size_bytes')} bytes",
+        f"SHA-256: {result.get('sha256')}",
+    ]
+    if result.get("binary"):
+        lines.append("Binary file: preview omitted.")
+    else:
+        if result.get("truncated"):
+            lines.append("Preview truncated.")
+        lines.extend(["", "Preview", "-------", str(result.get("preview") or "")])
+    return "\n".join(lines)
+
+
+def format_filesystem_proposal_result(result: dict) -> str:
+    proposal = result.get("proposal") or result
+    lines = [
+        "Filesystem/Code Agent Proposal",
+        "==============================",
+        str(result.get("summary") or proposal.get("summary") or "Proposal operation completed."),
+        f"Proposal id: {proposal.get('id')}",
+        f"Status: {proposal.get('status')}",
+        f"Target: {proposal.get('display_target_path') or proposal.get('target_path')}",
+        f"Requires approval: {proposal.get('requires_approval')}",
+    ]
+    if proposal.get("has_proposed_content") is not None:
+        lines.append(f"Has proposed content: {'yes' if proposal.get('has_proposed_content') else 'no'}")
+    if result.get("proposal_note_path"):
+        lines.append(f"Proposal note: {result['proposal_note_path']}")
+    return "\n".join(lines)
+
+
+def format_filesystem_proposals(result: dict) -> str:
+    lines = [
+        "Filesystem/Code Agent Proposals",
+        "================================",
+        str(result.get("summary") or "Proposals listed."),
+    ]
+    for proposal in result.get("proposals") or []:
+        lines.append(
+            f"- {proposal.get('status')} / {proposal.get('id')}: "
+            f"{proposal.get('display_target_path') or proposal.get('target_path')}"
+        )
+    return "\n".join(lines)
+
+
+def format_filesystem_proposal(proposal: dict) -> str:
+    lines = [
+        "Filesystem/Code Agent Proposal",
+        "==============================",
+        f"Proposal id: {proposal.get('id')}",
+        f"Status: {proposal.get('status')}",
+        f"Target: {proposal.get('display_target_path') or proposal.get('target_path')}",
+        f"Mode: {proposal.get('mode')}",
+        f"Requires approval: {proposal.get('requires_approval')}",
+        "",
+        "Intent",
+        "------",
+        str(proposal.get("intent") or ""),
+    ]
+    if "proposed_content" in proposal:
+        lines.extend(["", "Proposed Content", "----------------", str(proposal.get("proposed_content") or "")])
+    elif proposal.get("has_proposed_content") is not None:
+        lines.append(f"Has proposed content: {'yes' if proposal.get('has_proposed_content') else 'no'}")
     return "\n".join(lines)
 
 

@@ -90,6 +90,8 @@ of allowed local actions:
 - Check Codex;
 - Read Current State;
 - Check Dashboard;
+- Check Path Access;
+- Inspect Files;
 - Open Dashboard;
 - Initialize Database;
 - Initialize Status Tracker;

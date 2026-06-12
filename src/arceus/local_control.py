@@ -14,6 +14,7 @@ from arceus.config import Settings
 from arceus.conversation import ConversationStore
 from arceus.dashboard_launcher import dashboard_status, install_mac_launcher, open_dashboard
 from arceus.db import connect
+from arceus.filesystem_agent import FilesystemAgent
 from arceus.migrations import migrate
 from arceus.path_policy import describe_path_policy
 from arceus.runtimes import inspect_codex_runtime
@@ -76,6 +77,14 @@ ACTION_CATALOG: dict[str, LocalAction] = {
         risk_level="low",
         approval_required=False,
         expected_output="Read roots and write roots; Documents-wide access should not appear.",
+    ),
+    "filesystem_agent_inspect": LocalAction(
+        key="filesystem_agent_inspect",
+        title="Inspect Files",
+        description="Ask the Filesystem/Code Agent to summarize an allowed folder without changing anything.",
+        risk_level="low",
+        approval_required=False,
+        expected_output="Folder structure, counts, skipped entries, and path-policy context.",
     ),
     "open_dashboard": LocalAction(
         key="open_dashboard",
@@ -202,6 +211,7 @@ class LocalControlService:
             "status_summary": _run_status_summary,
             "dashboard_status": _run_dashboard_status,
             "path_policy_status": _run_path_policy_status,
+            "filesystem_agent_inspect": _run_filesystem_agent_inspect,
             "open_dashboard": _run_open_dashboard,
             "init_status_tracker": _run_init_status_tracker,
             "install_mac_launcher": _run_install_mac_launcher,
@@ -371,6 +381,14 @@ def _run_path_policy_status(service: LocalControlService, payload: dict[str, Any
         "summary": "Path policy loaded.",
         "path_policy": policy,
     }
+
+
+def _run_filesystem_agent_inspect(service: LocalControlService, payload: dict[str, Any]) -> dict[str, Any]:
+    agent = FilesystemAgent(service.settings)
+    path = str(payload.get("path") or ".")
+    max_depth = int(payload.get("max_depth") or 2)
+    max_entries = int(payload.get("max_entries") or 120)
+    return agent.inspect(path=path, max_depth=max_depth, max_entries=max_entries)
 
 
 def _run_open_dashboard(service: LocalControlService, payload: dict[str, Any]) -> dict[str, Any]:

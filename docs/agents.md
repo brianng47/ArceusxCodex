@@ -158,7 +158,7 @@ Never register both the real powerful tool and its proxy in the same process.
 
 Build the filesystem/code specialist first.
 
-Initial capability:
+V0 capability:
 
 1. Read a selected folder.
 2. Summarize its structure.
@@ -166,3 +166,13 @@ Initial capability:
 4. Ask for approval.
 5. Apply the approved change.
 6. Log the action to memory.
+
+Current implementation:
+
+- `src/arceus/filesystem_agent.py`
+- `./scripts/arceus fs-inspect`
+- `./scripts/arceus fs-read`
+- `./scripts/arceus fs-draft`
+- `./scripts/arceus fs-apply-proposal`
+
+See [Filesystem/Code Agent](filesystem-code-agent.md).
