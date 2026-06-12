@@ -267,3 +267,70 @@ Implementation note:
 The Local Control drawer now shows an approval card for state-changing actions.
 The card does not introduce arbitrary shell execution. It only approves actions
 already present in the allowed action catalog.
+
+## 2026-06-12: Roadmap Changed To Jarvis OS-First
+
+Decision:
+
+Reorder the roadmap around Arceus as a Jarvis-style personal operating layer,
+not a dashboard-first product.
+
+The dashboard remains important, but it is now a later supervisor interface over
+stable OS contracts. The active priority order is personal memory,
+clarification, holistic workflow approval, runtime brokering, bounded
+concurrent sub-agents, reliable local execution, push-to-talk voice, and then
+dashboard/front-interface polish.
+
+Rationale:
+
+Brian already has access to strong vanilla LLM and agent tools such as Codex,
+Claude Code, Claude Cowork, and Grok. Arceus only stands out if it knows Brian
+better, remembers durable context, plans workflows, asks high-value
+clarifying questions, coordinates multiple specialist agents, chooses the right
+runtime per subtask, and writes outcomes back into a second brain.
+
+Implementation note:
+
+Postgres remains the operational ledger for tasks, runs, approvals, statuses,
+events, and crash recovery. Obsidian becomes the personal knowledge layer using
+an LLM-wiki pattern: map files, immutable `raw/` sources, LLM-maintained
+`wiki/` pages, `wiki/index.md` as the routing table, `wiki/log.md` as the
+operation timeline, `wiki/hot.md` as a rolling current-context cache, and
+audits for stale claims, contradictions, orphans, missing pages, missing
+cross-references, and data gaps.
+
+Approval model:
+
+Arceus should identify the key problem, ask clarifying questions when context is
+missing, present one holistic approval bundle with dependencies and risks, then
+run approved low-risk work. Writes, destructive operations, publishing,
+credentials, purchases, financial actions, and irreversible operations remain
+explicitly gated.
+
+## 2026-06-12: Obsidian Vault Restructured As Root LLM-Wiki
+
+Decision:
+
+Promote the LLM-wiki structure from an Arceus subfolder pattern to the root of
+the Obsidian vault.
+
+Rationale:
+
+Brian wants the whole vault to become Arceus' memory surface, not only a nested
+project folder. Root-level map, index, log, hot cache, and domain folders make
+the vault itself the memory app while still preserving generated Arceus status
+notes.
+
+Implementation note:
+
+The vault root now contains `CLAUDE.md`, `AGENTS.md`, `raw/`, and `wiki/`.
+The root `wiki/` contains `index.md`, `log.md`, `hot.md`, domain folders, and
+initial pages for the active roadmap, vault structure, Arceus project,
+`riprocket_tcg` Instagram growth, Brian's operating preferences, the default
+clarify-plan-approve-execute workflow, and the AI Second Brain Skills source.
+
+Compatibility note:
+
+`Arceus/00_System/` remains in place because current Arceus status tracker code
+writes generated Current State and Status Tracker notes there. Do not move that
+folder until the application path is migrated.

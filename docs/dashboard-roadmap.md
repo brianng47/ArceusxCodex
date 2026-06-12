@@ -2,17 +2,28 @@
 
 ## Purpose
 
-The dashboard roadmap defines the remaining build work for Arceus as a
-full-fledged local-first operating surface.
+This document now defines the dashboard as a later supervisor surface over the
+Jarvis OS core. It is not the primary roadmap.
 
-The first priority is the automatic status tracker. It reduces token waste by
-giving future agents a compact current-state record to read before they inspect
-long chats, handoff logs, or scattered docs.
+The active product priority is:
+
+1. personal memory;
+2. clarification and planning;
+3. holistic approvals;
+4. runtime brokering;
+5. bounded concurrent specialists;
+6. reliable local execution;
+7. push-to-talk voice;
+8. dashboard/front interface.
+
+The dashboard should never become a parallel state model. It must consume the
+same OS contracts used by CLI, local API, workers, and future remote surfaces.
 
 ## Status Tracker First
 
-Arceus records compact status updates after meaningful sessions and lifecycle
-events.
+The automatic status tracker remains the first handoff surface for future
+agents. It reduces token waste by giving future runs a compact current-state
+record before they inspect long chats, handoff logs, or scattered docs.
 
 Each status update stores:
 
@@ -29,7 +40,8 @@ Each status update stores:
 - linked project, task, or agent;
 - source type and source id.
 
-Postgres is the operational ledger. Obsidian is the canonical long-term memory.
+Postgres is the operational ledger. Obsidian is the personal knowledge and
+memory layer.
 
 Configured Obsidian vault:
 
@@ -37,7 +49,7 @@ Configured Obsidian vault:
 /Users/brianng/Library/Mobile Documents/iCloud~md~obsidian/Documents
 ```
 
-Generated Obsidian notes:
+Generated status notes:
 
 ```text
 Arceus/00_System/Status Tracker/
@@ -50,101 +62,107 @@ Before starting substantial work, future agents should read:
 ./scripts/arceus status-summary
 ```
 
-## Workstreams
+## Dashboard Role
 
-### 1. Data Backbone
+The dashboard should become a supervisor view for:
 
-Build durable records and APIs for:
+- current problem statement;
+- clarification state;
+- holistic approval packet;
+- running workflow plan;
+- concurrent sub-agent progress;
+- runtime choices and why they were made;
+- dependencies and blockers;
+- safe failure details;
+- final synthesis;
+- memory writes and Obsidian links.
 
-- chats;
-- tags;
-- agents;
-- projects;
-- workflows;
-- approvals;
-- memory links;
-- status updates.
+It should not be the only way to operate Arceus. The same flows must remain
+available through CLI/local API so the OS can be tested and recovered without a
+browser.
 
-Current v0 implementation:
+## Current v0 Implementation
 
-- Postgres tables exist for projects, agents, dashboard tasks, workflows, tags,
-  memory links, and chat tags.
-- Seed data creates the first two project folders:
-  `riprocket_tcg Instagram Growth` and
-  `UGC Influencer Content Creation`.
-- Seed data creates the first agent roster: Arceus, Memory Scribe,
-  Filesystem/Code Agent, Research Agent, UI/UX Agent, TCG Growth Strategist,
-  and UGC Creative Director.
-- The dashboard exposes read-only zone APIs under `/api/zones/<zone>`.
-- Editing, double-click project drill-down, and workflow promotion remain future
-  work.
+Already implemented:
 
-### 2. Dashboard Zones
+- local dashboard at `http://127.0.0.1:8787`;
+- terminal-free macOS launcher;
+- conversation panel;
+- runtime status;
+- handoff list and Codex autorun button;
+- Local Control drawer with fixed allowed actions;
+- dashboard-native approval card for state-changing Local Control actions;
+- status tracker panel;
+- read-only zone APIs under `/api/zones/<zone>`;
+- seed projects for `riprocket_tcg Instagram Growth` and
+  `UGC Influencer Content Creation`;
+- seed agent roster for Arceus, Memory Scribe, Filesystem/Code Agent, Research
+  Agent, UI/UX Agent, TCG Growth Strategist, and UGC Creative Director.
 
-Make the sidebar zones real views:
+These pieces are useful, but they are not the finished OS.
 
-- Chats: date organization, keyword search, tags to tasks and projects.
-- Agents: team-member cards with Pokemon-lore-inspired identities.
-- Tasks: scheduled, queued, running, completed, failed, and awaiting approval.
-- Workflows: visual read-only graph first, editable later.
-- Projects: start with `riprocket_tcg Instagram Growth` and
-  `UGC Influencer Content Creation`.
+## Workstreams In The New Order
 
-### 3. Obsidian Memory
+### 1. OS API Consumer
 
-Obsidian is the only long-term brain vault for now.
+Dashboard controls should call stable OS endpoints for intent, plans,
+approvals, agent runs, memory links, and status. Avoid dashboard-only business
+logic.
 
-Arceus should write linked Markdown for:
+### 2. Supervisor View
 
-- decisions;
-- projects;
-- task results;
-- agent behavior;
-- user preferences;
-- daily brief sources.
+Show the workflow plan before execution:
 
-### 4. Tasks And Approvals
+- problem statement;
+- assumptions;
+- clarifying questions;
+- dependencies;
+- agent assignments;
+- runtime choices;
+- risk levels;
+- approval gates.
 
-Low-risk batches can use grouped approval.
+### 3. Approval Center
 
-High-risk actions always need explicit approval:
+Show holistic approval bundles first. Step-level approvals remain available for
+writes, destructive operations, publishing, credentials, purchases, financial
+actions, and irreversible actions.
 
-- destructive changes;
-- credential access;
-- financial actions;
-- publishing;
-- irreversible actions.
+### 4. Agent Swarm Progress
 
-Automation without approval is only allowed after a workflow is defined, tested,
-and promoted.
+Show bounded concurrent specialists as a supervised swarm:
 
-### 5. Agents
+- queued;
+- running;
+- blocked;
+- failed;
+- completed;
+- synthesized.
 
-Agents should feel like team members, not generic tools.
+### 5. Memory Visibility
 
-Initial roster:
+Show which Obsidian pages are read or written:
 
-- Arceus: orchestrator;
-- Memory Scribe;
-- Filesystem/Code Agent;
-- Research Agent;
-- UI/UX Agent;
-- TCG Growth Strategist;
-- UGC Creative Director.
+- `wiki/index.md`;
+- `wiki/log.md`;
+- `wiki/hot.md`;
+- project pages;
+- preference pages;
+- workflow pages;
+- audit pages.
 
 ### 6. Voice And Avatar
 
-Voice should prioritize fast conversational response using ElevenLabs.
-
-The avatar path starts with Spline for interactive 3D. Meshy can supply assets
-later. Higgsfield is for cinematic references and video studies, not a core
-dashboard dependency.
+Voice and avatar should reflect the OS state rather than decorate an unstable
+workflow. First target is push-to-talk voice with transcript fallback and a
+stateful 2D/avatar core. Spline or richer 3D can come after the OS loop is
+stable.
 
 ## Cost Guardrail
 
 Lean local prototype: roughly `$0-$15/month`.
 
-Useful voice plus Spline prototype: roughly `$25-$60/month`.
+Useful voice plus lightweight avatar prototype: roughly `$25-$60/month`.
 
 Creative-heavy 3D/video month: roughly `$60-$150/month`, depending on
 Meshy/Higgsfield usage.
